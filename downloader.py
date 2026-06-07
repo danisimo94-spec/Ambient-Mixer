@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
+from dotenv import load_dotenv
 
 SEARCH_URL = "https://freesound.org/apiv2/search/text/"
 SOUND_URL = "https://freesound.org/apiv2/sounds/{sound_id}/"
@@ -12,23 +13,14 @@ SOUNDS_DIR = BASE_DIR / "sounds"
 MANIFEST_PATH = SOUNDS_DIR / "manifest.json"
 ENV_PATH = BASE_DIR / ".env"
 
+try:
+    load_dotenv(ENV_PATH, override=False)
+except OSError as error:
+    raise RuntimeError(f"Could not read .env: {error}") from error
 
-def load_env(path=ENV_PATH):
-    if not path.exists():
-        return
-
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
-
-
-load_env()
-API_KEY = os.environ.get("FREESOUND_API_KEY")
+API_KEY = os.environ.get("FREESOUND_API_KEY", "").strip()
 if not API_KEY:
-    raise RuntimeError("FREESOUND_API_KEY is missing. Create .env from .env.example.")
+    raise RuntimeError("FREESOUND_API_KEY is missing. Start main.py and enter a key.")
 
 SOUNDS = {
     "rain": {"query": "rain ambience loop", "sound_id": 525046},

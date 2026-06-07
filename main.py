@@ -1,17 +1,22 @@
 import json
+import os
 import subprocess
 import sys
 import tkinter as tk
 import tkinter.font as tkfont
 from pathlib import Path
+from tkinter import messagebox
 
 import customtkinter as ctk
 import pygame
+from dotenv import load_dotenv, set_key
 
 BASE_DIR = Path(__file__).resolve().parent
 SOUNDS_DIR = BASE_DIR / "sounds"
 MANIFEST_PATH = SOUNDS_DIR / "manifest.json"
 CONFIG_PATH = BASE_DIR / "config.json"
+ENV_PATH = BASE_DIR / ".env"
+API_KEY_NAME = "FREESOUND_API_KEY"
 
 COLORS = {
     "bg": "#111111",
@@ -154,13 +159,20 @@ class AmbientMixer(ctk.CTk):
         self.geometry("400x720")
         self.resizable(False, False)
         self.configure(fg_color=COLORS["bg"])
+        ctk.set_appearance_mode("dark")
 
         self.font_family = self.get_font_family()
+        if not self.ensure_api_key():
+            self.after(0, self.destroy)
+            return
+
         self.config_data = self.load_config()
         self.current_lang = self.config_data.get("lang", "en")
         if self.current_lang not in TRANSLATIONS:
             self.current_lang = "en"
         self.manifest = self.load_manifest()
+        if not self.manifest:
+            return
         pygame.mixer.init()
         pygame.mixer.set_num_channels(len(SOUNDS))
 
@@ -187,6 +199,41 @@ class AmbientMixer(ctk.CTk):
         self.build_ui()
         self.apply_lang(save=False)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def ensure_api_key(self):
+        try:
+            ENV_PATH.touch(exist_ok=True)
+            load_dotenv(ENV_PATH, override=False)
+        except OSError as error:
+            messagebox.showerror("Ambient Mixer", f"Could not read or create .env file:\n{error}")
+            return False
+
+        if os.environ.get(API_KEY_NAME, "").strip():
+            return True
+
+        dialog = ctk.CTkInputDialog(
+            title="Freesound API Key",
+            text="Freesound API Key is required to download sounds.\nPaste your key below:",
+        )
+        api_key = dialog.get_input()
+
+        if api_key is None:
+            messagebox.showerror("Ambient Mixer", "Freesound API Key is required. App will close.")
+            return False
+
+        api_key = api_key.strip()
+        if not api_key:
+            messagebox.showerror("Ambient Mixer", "Freesound API Key cannot be empty. App will close.")
+            return False
+
+        try:
+            set_key(str(ENV_PATH), API_KEY_NAME, api_key)
+            os.environ[API_KEY_NAME] = api_key
+        except Exception as error:
+            messagebox.showerror("Ambient Mixer", f"Could not save Freesound API Key to .env:\n{error}")
+            return False
+
+        return True
 
     def load_config(self):
         if not CONFIG_PATH.exists():
@@ -218,24 +265,39 @@ class AmbientMixer(ctk.CTk):
         return ctk.CTkFont(family=self.font_family, size=size, weight=weight)
 
     def load_manifest(self):
-        if not MANIFEST_PATH.exists():
-            print("sounds/manifest.json not found. Running downloader.py...")
-            subprocess.run([sys.executable, str(BASE_DIR / "downloader.py")], cwd=BASE_DIR, check=True)
+        try:
+            if not MANIFEST_PATH.exists():
+                print("sounds/manifest.json not found. Running downloader.py...")
+                self.run_downloader()
 
-        with MANIFEST_PATH.open("r", encoding="utf-8") as file:
-            manifest = json.load(file)
-
-        missing = [category for category in SOUNDS if category not in manifest]
-        if missing:
-            print(f"Missing sounds in manifest: {', '.join(missing)}. Running downloader.py...")
-            subprocess.run([sys.executable, str(BASE_DIR / "downloader.py")], cwd=BASE_DIR, check=True)
             with MANIFEST_PATH.open("r", encoding="utf-8") as file:
                 manifest = json.load(file)
 
+            missing = [category for category in SOUNDS if category not in manifest]
+            if missing:
+                print(f"Missing sounds in manifest: {', '.join(missing)}. Running downloader.py...")
+                self.run_downloader()
+                with MANIFEST_PATH.open("r", encoding="utf-8") as file:
+                    manifest = json.load(file)
+        except Exception as error:
+            messagebox.showerror("Ambient Mixer", f"Could not load or download sounds:\n{error}")
+            self.destroy()
+            return {}
+
         missing = [category for category in SOUNDS if category not in manifest]
         if missing:
-            raise RuntimeError(f"Missing sounds in manifest: {', '.join(missing)}")
+            messagebox.showerror("Ambient Mixer", f"Missing sounds in manifest: {', '.join(missing)}")
+            self.destroy()
+            return {}
         return manifest
+
+    def run_downloader(self):
+        try:
+            import downloader
+
+            downloader.download_sounds()
+        except ImportError:
+            subprocess.run([sys.executable, str(BASE_DIR / "downloader.py")], cwd=BASE_DIR, check=True)
 
     def load_sounds(self):
         for index, category in enumerate(SOUNDS):

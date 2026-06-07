@@ -82,6 +82,7 @@ Python packages:
 customtkinter
 pygame
 requests
+python-dotenv
 ```
 
 ## Setup
@@ -129,7 +130,9 @@ pip install -r requirements.txt
 
 This app uses Freesound API only to download public preview files. Your API key must stay private.
 
-Create `.env` in project root:
+On first launch, if `.env` or `FREESOUND_API_KEY` is missing, the app opens a modal input dialog and asks for your key. After you paste it, the app saves it to `.env` and continues downloading sounds.
+
+You can also create `.env` manually:
 
 ```bash
 cp .env.example .env
