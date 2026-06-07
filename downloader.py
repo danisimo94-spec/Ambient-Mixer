@@ -86,7 +86,7 @@ def get_sound(sound_id):
 
 
 def download_file(url, destination):
-    with requests.get(url, stream=True, timeout=60) as response:
+    with requests.get(url, stream=True, timeout=(10, 30)) as response:
         response.raise_for_status()
         with destination.open("wb") as file:
             for chunk in response.iter_content(chunk_size=1024 * 128):
@@ -94,27 +94,30 @@ def download_file(url, destination):
                     file.write(chunk)
 
 
-def download_sounds():
+def download_sounds(progress_callback=None):
     SOUNDS_DIR.mkdir(parents=True, exist_ok=True)
     if MANIFEST_PATH.exists():
         manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     else:
         manifest = {}
 
-    for category, config in SOUNDS.items():
+    total = len(SOUNDS)
+    for index, (category, config) in enumerate(SOUNDS.items(), start=1):
+        if progress_callback:
+            progress_callback(f"Checking {category} ({index}/{total})")
         if category in manifest:
             existing_path = BASE_DIR / manifest[category]
             if existing_path.exists() and existing_path.stat().st_size > 0:
-                print(f"Using manifest {category}: {existing_path.name}")
+                print(f"Using manifest {category}: {existing_path.name}", flush=True)
                 continue
 
         query = config["query"]
         sound_id = config.get("sound_id")
         if sound_id:
-            print(f"Fetching {category}: {sound_id} ({query})")
+            print(f"Fetching {category}: {sound_id} ({query})", flush=True)
             sound = get_sound(sound_id)
         else:
-            print(f"Searching {category}: {query}")
+            print(f"Searching {category}: {query}", flush=True)
             sound = search_sound(query)
             sound_id = sound["id"]
 
@@ -131,15 +134,18 @@ def download_sounds():
         destination = SOUNDS_DIR / filename
 
         if destination.exists() and destination.stat().st_size > 0:
-            print(f"Using existing {category}: {destination.name}")
+            print(f"Using existing {category}: {destination.name}", flush=True)
         else:
-            print(f"Downloading {category}: {sound.get('name')} -> {destination.name}")
+            if progress_callback:
+                progress_callback(f"Downloading {category} ({index}/{total})")
+            print(f"Downloading {category}: {sound.get('name')} -> {destination.name}", flush=True)
             download_file(preview_url, destination)
 
         manifest[category] = str(Path("sounds") / filename).replace("\\", "/")
+        MANIFEST_PATH.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     MANIFEST_PATH.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    print(f"Wrote {MANIFEST_PATH}")
+    print(f"Wrote {MANIFEST_PATH}", flush=True)
     return manifest
 
 

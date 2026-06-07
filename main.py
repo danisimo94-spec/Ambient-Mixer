@@ -184,9 +184,11 @@ class AmbientMixer(ctk.CTk):
         self.current_lang = self.config_data.get("lang", "en")
         if self.current_lang not in TRANSLATIONS:
             self.current_lang = "en"
+        self.build_loading_ui()
         self.manifest = self.load_manifest(retry_auth=True)
         if not self.manifest:
             return
+        self.clear_loading_ui()
         pygame.mixer.init()
         pygame.mixer.set_num_channels(len(SOUNDS))
 
@@ -278,6 +280,35 @@ class AmbientMixer(ctk.CTk):
     def font(self, size, weight="normal"):
         return ctk.CTkFont(family=self.font_family, size=size, weight=weight)
 
+    def build_loading_ui(self):
+        self.loading_status = ctk.StringVar(value="Preparing sound library...")
+        self.loading_frame = ctk.CTkFrame(self, fg_color=COLORS["bg"], corner_radius=0)
+        self.loading_frame.pack(fill="both", expand=True, padx=22, pady=20)
+        self.loading_frame.grid_columnconfigure(0, weight=1)
+        self.loading_frame.grid_rowconfigure(0, weight=1)
+        ctk.CTkLabel(
+            self.loading_frame,
+            text="AMBIENT",
+            font=self.font(11),
+            text_color=COLORS["title"],
+        ).grid(row=0, column=0, sticky="s", pady=(0, 12))
+        ctk.CTkLabel(
+            self.loading_frame,
+            textvariable=self.loading_status,
+            font=self.font(13),
+            text_color=COLORS["text_active"],
+        ).grid(row=1, column=0, sticky="n")
+        self.update_idletasks()
+
+    def set_loading_status(self, status):
+        if hasattr(self, "loading_status"):
+            self.loading_status.set(status)
+            self.update_idletasks()
+
+    def clear_loading_ui(self):
+        if hasattr(self, "loading_frame"):
+            self.loading_frame.destroy()
+
     def load_manifest(self, retry_auth=False):
         try:
             if not MANIFEST_PATH.exists():
@@ -316,7 +347,7 @@ class AmbientMixer(ctk.CTk):
         try:
             import downloader
 
-            downloader.download_sounds()
+            downloader.download_sounds(progress_callback=self.set_loading_status)
         except ImportError:
             subprocess.run([sys.executable, str(BASE_DIR / "downloader.py")], cwd=BASE_DIR, check=True)
 
