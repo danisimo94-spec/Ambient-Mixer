@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.log
+sounds/*.mp3
+sounds/*.wav
+sounds/*.ogg
+sounds/*.flac
+sounds/manifest.json
