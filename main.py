@@ -9,7 +9,7 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 import pygame
-from dotenv import load_dotenv, set_key
+from dotenv import load_dotenv, set_key, unset_key
 
 BASE_DIR = Path(__file__).resolve().parent
 SOUNDS_DIR = BASE_DIR / "sounds"
@@ -152,6 +152,20 @@ class CanvasProgress(tk.Canvas):
         self.create_rectangle(0, 5, fill_width, 7, fill=COLORS["accent"], outline="")
 
 
+class ApiKeyDialog(ctk.CTkInputDialog):
+    def _create_widgets(self):
+        super()._create_widgets()
+        self._entry.bind("<Control-v>", self.paste)
+        self._entry.bind("<Command-v>", self.paste)
+
+    def paste(self, _event=None):
+        try:
+            self._entry.insert("insert", self.clipboard_get())
+        except tk.TclError:
+            pass
+        return "break"
+
+
 class AmbientMixer(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -170,7 +184,7 @@ class AmbientMixer(ctk.CTk):
         self.current_lang = self.config_data.get("lang", "en")
         if self.current_lang not in TRANSLATIONS:
             self.current_lang = "en"
-        self.manifest = self.load_manifest()
+        self.manifest = self.load_manifest(retry_auth=True)
         if not self.manifest:
             return
         pygame.mixer.init()
@@ -211,7 +225,7 @@ class AmbientMixer(ctk.CTk):
         if os.environ.get(API_KEY_NAME, "").strip():
             return True
 
-        dialog = ctk.CTkInputDialog(
+        dialog = ApiKeyDialog(
             title="Freesound API Key",
             text="Freesound API Key is required to download sounds.\nPaste your key below:",
         )
@@ -264,7 +278,7 @@ class AmbientMixer(ctk.CTk):
     def font(self, size, weight="normal"):
         return ctk.CTkFont(family=self.font_family, size=size, weight=weight)
 
-    def load_manifest(self):
+    def load_manifest(self, retry_auth=False):
         try:
             if not MANIFEST_PATH.exists():
                 print("sounds/manifest.json not found. Running downloader.py...")
@@ -280,6 +294,13 @@ class AmbientMixer(ctk.CTk):
                 with MANIFEST_PATH.open("r", encoding="utf-8") as file:
                     manifest = json.load(file)
         except Exception as error:
+            if retry_auth and "Freesound API Key" in str(error):
+                self.clear_api_key()
+                messagebox.showerror("Ambient Mixer", f"{error}\n\nPlease enter a valid Freesound API Key.")
+                if self.ensure_api_key():
+                    return self.load_manifest(retry_auth=False)
+                self.destroy()
+                return {}
             messagebox.showerror("Ambient Mixer", f"Could not load or download sounds:\n{error}")
             self.destroy()
             return {}
@@ -298,6 +319,13 @@ class AmbientMixer(ctk.CTk):
             downloader.download_sounds()
         except ImportError:
             subprocess.run([sys.executable, str(BASE_DIR / "downloader.py")], cwd=BASE_DIR, check=True)
+
+    def clear_api_key(self):
+        os.environ.pop(API_KEY_NAME, None)
+        try:
+            unset_key(str(ENV_PATH), API_KEY_NAME)
+        except Exception:
+            pass
 
     def load_sounds(self):
         for index, category in enumerate(SOUNDS):

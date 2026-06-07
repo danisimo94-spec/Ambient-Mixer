@@ -18,9 +18,21 @@ try:
 except OSError as error:
     raise RuntimeError(f"Could not read .env: {error}") from error
 
-API_KEY = os.environ.get("FREESOUND_API_KEY", "").strip()
-if not API_KEY:
-    raise RuntimeError("FREESOUND_API_KEY is missing. Start main.py and enter a key.")
+class FreesoundAuthError(RuntimeError):
+    pass
+
+
+def get_api_key():
+    api_key = os.environ.get("FREESOUND_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("FREESOUND_API_KEY is missing. Start main.py and enter a key.")
+    return api_key
+
+
+def raise_for_api_error(response):
+    if response.status_code == 401:
+        raise FreesoundAuthError("Freesound API Key is invalid or unauthorized.")
+    response.raise_for_status()
 
 SOUNDS = {
     "rain": {"query": "rain ambience loop", "sound_id": 525046},
@@ -50,13 +62,13 @@ SOUNDS = {
 def search_sound(query):
     params = {
         "query": query,
-        "token": API_KEY,
+        "token": get_api_key(),
         "filter": 'license:"Creative Commons 0"',
         "fields": "id,name,license,previews",
         "page_size": 10,
     }
     response = requests.get(SEARCH_URL, params=params, timeout=30)
-    response.raise_for_status()
+    raise_for_api_error(response)
     results = response.json().get("results", [])
     if not results:
         raise RuntimeError(f"No Freesound results for: {query}")
@@ -66,10 +78,10 @@ def search_sound(query):
 def get_sound(sound_id):
     response = requests.get(
         SOUND_URL.format(sound_id=sound_id),
-        params={"token": API_KEY, "fields": "id,name,license,previews"},
+        params={"token": get_api_key(), "fields": "id,name,license,previews"},
         timeout=30,
     )
-    response.raise_for_status()
+    raise_for_api_error(response)
     return response.json()
 
 
