@@ -30,7 +30,7 @@ API_KEY = os.environ.get("FREESOUND_API_KEY")
 if not API_KEY:
     raise RuntimeError("FREESOUND_API_KEY is missing. Create .env from .env.example.")
 
-CATEGORIES = {
+SOUNDS = {
     "rain": {"query": "rain ambience loop", "sound_id": 525046},
     "fire": {"query": "fireplace crackling loop", "sound_id": 729396},
     "cafe": {"query": "coffee shop ambience loop", "sound_id": 453074},
@@ -39,6 +39,19 @@ CATEGORIES = {
     "birds": {"query": "birds forest ambience loop", "sound_id": 634511},
     "keyboard": {"query": "keyboard typing loop", "sound_id": 700412},
     "thunder": {"query": "thunderstorm ambience loop", "sound_id": 704603},
+    "singing_bowls": {"query": "tibetan singing bowls meditation loop", "sound_id": 475307},
+    "tingsha": {"query": "tingsha bells meditation", "sound_id": 365403},
+    "gong": {"query": "gong meditation ambience loop", "sound_id": 235454},
+    "flute": {"query": "flute drone meditation ambient loop", "sound_id": 634118},
+    "om_drone": {"query": "om drone meditation ambient", "sound_id": 854866},
+    "stream": {"query": "stream creek water flowing loop", "sound_id": 419119},
+    "crickets": {"query": "crickets night ambience loop", "sound_id": 521843},
+    "cave": {"query": "cave drips water ambience loop", "sound_id": 553080},
+    "blizzard": {"query": "blizzard wind snowstorm loop", "sound_id": 679941},
+    "train": {"query": "train ride interior ambience loop", "sound_id": 438798},
+    "library": {"query": "library ambience quiet loop", "sound_id": 767305},
+    "tavern": {"query": "tavern fireplace ambience loop", "sound_id": 695295},
+    "rain_window": {"query": "rain on window glass ambience loop", "sound_id": 535868},
 }
 
 
@@ -79,9 +92,18 @@ def download_file(url, destination):
 
 def download_sounds():
     SOUNDS_DIR.mkdir(parents=True, exist_ok=True)
-    manifest = {}
+    if MANIFEST_PATH.exists():
+        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    else:
+        manifest = {}
 
-    for category, config in CATEGORIES.items():
+    for category, config in SOUNDS.items():
+        if category in manifest:
+            existing_path = BASE_DIR / manifest[category]
+            if existing_path.exists() and existing_path.stat().st_size > 0:
+                print(f"Using manifest {category}: {existing_path.name}")
+                continue
+
         query = config["query"]
         sound_id = config.get("sound_id")
         if sound_id:
