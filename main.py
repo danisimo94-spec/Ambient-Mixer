@@ -1,5 +1,6 @@
 import json
 import os
+import platform
 import subprocess
 import sys
 import tkinter as tk
@@ -580,7 +581,11 @@ class AmbientMixer(ctk.CTk):
         self.master_percent.grid(row=0, column=2, sticky="e")
 
     def on_mousewheel(self, event):
-        self.sound_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        if platform.system() == "Darwin":
+            units = -1 * event.delta
+        else:
+            units = int(-1 * (event.delta / 120))
+        self.sound_canvas.yview_scroll(units, "units")
 
     def toggle_lang(self):
         self.current_lang = "ru" if self.current_lang == "en" else "en"
