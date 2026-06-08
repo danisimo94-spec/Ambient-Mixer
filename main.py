@@ -471,7 +471,8 @@ class AmbientMixer(ctk.CTk):
 
         list_frame.bind("<Configure>", on_frame_configure)
         self.sound_canvas.bind("<Configure>", on_canvas_configure)
-        self.sound_canvas.bind_all("<MouseWheel>", self.on_mousewheel)
+        self.bind_scroll_widget(self.sound_canvas)
+        self.bind_scroll_widget(list_frame)
 
         for row_index, (category, meta) in enumerate(SOUNDS.items()):
             row = ctk.CTkFrame(list_frame, fg_color=COLORS["bg"], corner_radius=8, height=30)
@@ -526,9 +527,12 @@ class AmbientMixer(ctk.CTk):
             for widget in (row, icon, name, percent):
                 widget.bind("<Enter>", lambda _event, name=category: self.set_row_hover(name, True))
                 widget.bind("<Leave>", lambda _event, name=category: self.set_row_hover(name, False))
+                self.bind_scroll_widget(widget)
+            self.bind_scroll_widget(bar)
 
             divider = ctk.CTkFrame(list_frame, fg_color=COLORS["divider"], height=1, corner_radius=0)
             divider.grid(row=row_index * 2 + 1, column=0, sticky="ew", pady=(2, 2))
+            self.bind_scroll_widget(divider)
 
     def build_presets(self, parent):
         preset_frame = ctk.CTkFrame(parent, fg_color=COLORS["bg"], corner_radius=0)
@@ -586,6 +590,10 @@ class AmbientMixer(ctk.CTk):
         else:
             units = int(-1 * (event.delta / 120))
         self.sound_canvas.yview_scroll(units, "units")
+        return "break"
+
+    def bind_scroll_widget(self, widget):
+        widget.bind("<MouseWheel>", self.on_mousewheel, add="+")
 
     def toggle_lang(self):
         self.current_lang = "ru" if self.current_lang == "en" else "en"
