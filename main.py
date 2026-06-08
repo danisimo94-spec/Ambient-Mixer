@@ -202,6 +202,7 @@ class AmbientMixer(ctk.CTk):
         self.icon_labels = {}
         self.row_frames = {}
         self.preset_buttons = {}
+        self.is_pointer_over_sound_list = False
         self.master_volume = ctk.IntVar(value=self.config_data.get("master_vol", 80))
         self.is_playing = False
         self.active_preset = None
@@ -472,6 +473,9 @@ class AmbientMixer(ctk.CTk):
         list_frame.bind("<Configure>", on_frame_configure)
         self.sound_canvas.bind("<Configure>", on_canvas_configure)
         self.sound_canvas.bind_all("<MouseWheel>", self.on_mousewheel)
+        for widget in (outer, self.sound_canvas, list_frame):
+            widget.bind("<Enter>", self.enter_sound_list)
+            widget.bind("<Leave>", self.leave_sound_list)
 
         for row_index, (category, meta) in enumerate(SOUNDS.items()):
             row = ctk.CTkFrame(list_frame, fg_color=COLORS["bg"], corner_radius=8, height=30)
@@ -526,9 +530,17 @@ class AmbientMixer(ctk.CTk):
             for widget in (row, icon, name, percent):
                 widget.bind("<Enter>", lambda _event, name=category: self.set_row_hover(name, True))
                 widget.bind("<Leave>", lambda _event, name=category: self.set_row_hover(name, False))
+                widget.bind("<Enter>", self.enter_sound_list, add="+")
+                widget.bind("<Leave>", self.leave_sound_list, add="+")
+            bar.bind("<Enter>", self.enter_sound_list, add="+")
+            bar.bind("<Leave>", self.leave_sound_list, add="+")
 
             divider = ctk.CTkFrame(list_frame, fg_color=COLORS["divider"], height=1, corner_radius=0)
             divider.grid(row=row_index * 2 + 1, column=0, sticky="ew", pady=(2, 2))
+            divider.bind("<Enter>", self.enter_sound_list)
+            divider.bind("<Leave>", self.leave_sound_list)
+
+        self.after(0, lambda: self.bind_scroll_tree(outer))
 
     def build_presets(self, parent):
         preset_frame = ctk.CTkFrame(parent, fg_color=COLORS["bg"], corner_radius=0)
@@ -581,21 +593,36 @@ class AmbientMixer(ctk.CTk):
         self.master_percent.grid(row=0, column=2, sticky="e")
 
     def on_mousewheel(self, event):
-        if not self.is_inside_sound_list(event.x_root, event.y_root):
+        if not self.is_pointer_over_sound_list:
             return None
-        if platform.system() == "Darwin":
-            units = -1 * event.delta
+        if getattr(event, "num", None) == 4:
+            units = -1
+        elif getattr(event, "num", None) == 5:
+            units = 1
+        elif platform.system() == "Darwin":
+            units = -1 if event.delta > 0 else 1
         else:
             units = int(-1 * (event.delta / 120))
+            if units == 0 and event.delta:
+                units = -1 if event.delta > 0 else 1
         self.sound_canvas.yview_scroll(units, "units")
         return "break"
 
-    def is_inside_sound_list(self, x_root, y_root):
-        left = self.sound_canvas.winfo_rootx()
-        top = self.sound_canvas.winfo_rooty()
-        right = left + self.sound_canvas.winfo_width()
-        bottom = top + self.sound_canvas.winfo_height()
-        return left <= x_root <= right and top <= y_root <= bottom
+    def enter_sound_list(self, _event=None):
+        self.is_pointer_over_sound_list = True
+        self.sound_canvas.focus_set()
+
+    def leave_sound_list(self, _event=None):
+        self.is_pointer_over_sound_list = False
+
+    def bind_scroll_tree(self, widget):
+        widget.bind("<MouseWheel>", self.on_mousewheel, add="+")
+        widget.bind("<Button-4>", self.on_mousewheel, add="+")
+        widget.bind("<Button-5>", self.on_mousewheel, add="+")
+        widget.bind("<Enter>", self.enter_sound_list, add="+")
+        widget.bind("<Leave>", self.leave_sound_list, add="+")
+        for child in widget.winfo_children():
+            self.bind_scroll_tree(child)
 
     def toggle_lang(self):
         self.current_lang = "ru" if self.current_lang == "en" else "en"
